@@ -4,19 +4,74 @@ author: "Shannon Rush"
 date: "July 16, 2014"
 output: html_document
 ---
-
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
+Load Packages
 ```{r}
-summary(cars)
+    library(caret)
+```
+Download the data
+```{r download_data, cache=TRUE}
+    download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", 
+                  destfile="data/original/pml-training.csv",
+                  method="curl")
+    download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv",
+                  destfile="data/original/pml-testing.csv",
+                  method="curl")
+```
+Read the original data
+```{r read_data, cache=TRUE}
+    training <- read.csv("data/original/pml-training.csv")
+    testing <- read.csv("data/original/pml-testing.csv")
+```
+```{r remove_non_quantitative, cache=TRUE}
+    testing.quant <- testing[,-c(1:6)]
+    training.quant <- training[,-c(1:6)]
+```
+```{r remove_na_cols, cache=TRUE}
+    test <- testing.quant[,colSums(is.na(testing.quant))<nrow(testing.quant)]
+    train.all <- training.quant[,c("classe",names(test)[-54])] 
+```
+```{r create_validation, cache=TRUE}
+    set.seed(123)
+    train.indices <- createDataPartition(train.all$classe, p=0.6, list=F)
+    train <- train.all[train.indices,]
+    validation <- train.all[-train.indices,]
+```
+```{r examine_partitions, cache=TRUE}
+    dim(train)
+    dim(validation)
+```
+```{r rf, cache=TRUE}
+    rf.fit <- train(classe~., data=train, method="rf", proxy=TRUE)
+```
+```{r rf_summary, cache=TRUE}
+    rf.fit
+```
+```{r in_sample, cache=TRUE}
+    in.pred <- predict(rf.fit, train)
+    confusionMatrix(in.pred, train$classe)
+```
+```{r out_sample, cache=TRUE}
+    out.pred <- predict(rf.fit, validation)
+    confusionMatrix(out.pred, validation$classe)
+```
+```{r test_pred, cache=TRUE}
+    test.pred <- predict(rf.fit, test)
+    test.pred
 ```
 
-You can also embed plots, for example:
 
-```{r, echo=FALSE}
-plot(cars)
-```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
