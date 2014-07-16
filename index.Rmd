@@ -1,14 +1,19 @@
 ---
-title: "Course Project"
+title: "Human Activity Recognition Machine Learning Project"
 author: "Shannon Rush"
-date: "July 16, 2014"
 output: html_document
 ---
-Load Packages
-```{r}
-    library(caret)
+## Introduction
+
+Researchers at the Groupware @ LES group [performed a study](http://groupware.les.inf.puc-rio.br/har) in which they asked six men aged 20-28 to perform a variety of light weightlifting exercises, either to specification or with a pre-defined execution mistake. A classification of "A" was given to a correctly executed exercise, and "B", "C", "D", and "E" indicate the mistakes. A variety of motion measurements were recorded along with the classification.
+
+This project uses a subset of the resulting dataset, and attempts to use machine learning techniques to predict the classification of the exercises based solely on the motion measurements.
+
+## Getting and Processing Data
+```{r load_packages, echo=FALSE, results='hide'}
+    library(caret, quietly=TRUE)
 ```
-Download the data
+Two CSV files were made available from the [Practical Machine Learning Coursera website](https://class.coursera.org/predmachlearn-003). The first was the training dataset, consisting of 19622 exercise observations with classification labels. The second was the test dataset, consisting of 20 exercise observations without classificaiton labels.
 ```{r download_data, cache=TRUE}
     download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", 
                   destfile="data/original/pml-training.csv",
@@ -17,19 +22,30 @@ Download the data
                   destfile="data/original/pml-testing.csv",
                   method="curl")
 ```
-Read the original data
 ```{r read_data, cache=TRUE}
     training <- read.csv("data/original/pml-training.csv")
     testing <- read.csv("data/original/pml-testing.csv")
 ```
+Examining the summary of the testing dataset reveals two types of columns to eliminate.
+
+First, the columns 1 through 6 consist of features that do not represent exercise motion.  It is likely that these features will add more noise than signal to the model so these should not be included.
+```{r examine_cols, cache=TRUE}
+    testing[1,1:6]
+```
+
 ```{r remove_non_quantitative, cache=TRUE}
     testing.quant <- testing[,-c(1:6)]
     training.quant <- training[,-c(1:6)]
 ```
+
+Second, there are many columns that consist only of NAs.  Obviously these will provide no information to the model so they too are eliminated.
 ```{r remove_na_cols, cache=TRUE}
     test <- testing.quant[,colSums(is.na(testing.quant))<nrow(testing.quant)]
     train.all <- training.quant[,c("classe",names(test)[-54])] 
 ```
+
+The last step before model building is partitioning the training dataset into two parts. One part will consist of 60% of the data and will be used to train the model. The remaining 40% will act as a validation set and will provide an out of sample estimate of how well the model will perform on the test set.
+
 ```{r create_validation, cache=TRUE}
     set.seed(123)
     train.indices <- createDataPartition(train.all$classe, p=0.6, list=F)
@@ -40,24 +56,49 @@ Read the original data
     dim(train)
     dim(validation)
 ```
+## Machine Learning Model
+
+The machine learning algorithm this project will use is [Random Forests](http://www.stat.berkeley.edu/~breiman/RandomForests/cc_home.htm#intro). This classifier was selected because it produces highly accurate predictions with relatively easier interpretability than other more complex algorithms. 
+
+### Building The Model
+
+Since a validation dataset has already been split off of the training data the random forest model will be fit using the larger training dataset consisting of 60% of the original training dataset.  
 ```{r rf, cache=TRUE}
     rf.fit <- train(classe~., data=train, method="rf", proxy=TRUE)
 ```
 ```{r rf_summary, cache=TRUE}
     rf.fit
 ```
-```{r in_sample, cache=TRUE}
-    in.pred <- predict(rf.fit, train)
-    confusionMatrix(in.pred, train$classe)
-```
+### Expected Out of Sample Error Using Cross Validation
+
+As the validation dataset was not used to fit the random forest model it can be used to make an estimate of how well the model will perform on the test dataset.
 ```{r out_sample, cache=TRUE}
     out.pred <- predict(rf.fit, validation)
     confusionMatrix(out.pred, validation$classe)
 ```
+The random forest model misclassified 16 of the 7846 validation exercise observations.  This gives us an estimated out of sample accuracy rate of approximately 99.8% with a quantified uncertainty confidence interval of 99.7% to 99.9%.
+
+## Results
+
+Results are obtained by making a prediction on the test set and submitting the prediction to the automated system via the Coursera class website.
+
+```{r submit_function, cache=TRUE, echo=FALSE}
+    WriteFiles <- function(x) {
+      for (i in 1:length(x)) {
+        filename <- paste0("problem_id_", i, ".txt")
+        write.table(x[i], file=paste0("files/",filename), quote=FALSE, row.names=FALSE, col.names=FALSE)
+      }
+    }
+```
+
 ```{r test_pred, cache=TRUE}
     test.pred <- predict(rf.fit, test)
-    test.pred
+    answers <- as.character(test.pred)
+    WriteFiles(answers)
 ```
+After submitting the files a result of 20/20, or 100%, was obtained, closely matching the estimated out of sample error using the cross validation method of separating the training dataset into a 60% training set and 40% validation set.
+
+
 
 
 
